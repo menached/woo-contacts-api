@@ -6,7 +6,7 @@ const cors = require('cors');
 const app = express();
 app.use(cors()); // Enable CORS to allow React frontend to communicate with the backend
 
-
+// Create a connection to the database
 const db = mysql.createConnection({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -23,131 +23,119 @@ db.connect((err) => {
   console.log('Connected to the MySQL database');
 });
 
-
-
-app.get('/contacts', (req, res) => {
-  const limit = parseInt(req.query.limit) || 10;
-  const page = parseInt(req.query.page) || 1;
-  const offset = (page - 1) * limit;
+// Helper function to apply filters
+const applyFilters = (req) => {
   const city = req.query.city !== 'All' ? req.query.city : null;
   const zipCode = req.query.zipCode !== 'All' ? req.query.zipCode : null;
   const areaCode = req.query.areaCode !== 'All' ? req.query.areaCode : null;
   const category = req.query.category !== 'All' ? req.query.category : null;
-  const search = req.query.search ? `%${req.query.search}%` : null; // Loose match for search
+  const search = req.query.search ? `%${req.query.search}%` : null;
 
-  let query = `SELECT * FROM contacts WHERE 1=1`;
-  let params = [];
+  return { city, zipCode, areaCode, category, search };
+};
 
-  // Apply filters for city, zip code, area code, and category
-  if (city) {
-    query += ` AND city = ?`;
-    params.push(city);
+// Helper function to build SQL WHERE clause based on filters
+const buildFilterQuery = (filters, params) => {
+  let query = 'WHERE 1=1'; // Base query
+
+  if (filters.city) {
+    query += ' AND city = ?';
+    params.push(filters.city);
   }
 
-  if (zipCode) {
-    query += ` AND zip_code = ?`;
-    params.push(zipCode);
+  if (filters.zipCode) {
+    query += ' AND zip_code = ?';
+    params.push(filters.zipCode);
   }
 
-  // Apply filters for city, zip code, area code, and category
-  if (areaCode) {
+  if (filters.areaCode) {
     query += ` AND (CASE 
-            WHEN LEFT(phone_number, 2) = '+1' THEN SUBSTRING(phone_number, 3, 3) 
-            ELSE LEFT(phone_number, 3) 
-            END) = ?`;
-    params.push(areaCode);
+                  WHEN LEFT(phone_number, 2) = '+1' THEN SUBSTRING(phone_number, 3, 3)
+                  ELSE LEFT(phone_number, 3)
+                END) = ?`;
+    params.push(filters.areaCode);
   }
 
-  //if (areaCode) {
-    //query += ` AND LEFT(phone_number, 3) = ?`;
-    //params.push(areaCode);
-  //}
-
-  if (category) {
-    query += ` AND category = ?`;
-    params.push(category);
+  if (filters.category) {
+    query += ' AND category = ?';
+    params.push(filters.category);
   }
 
-  // Apply the search query to filter by first name (loose match)
-  if (search) {
-    query += ` AND full_name LIKE ?`;
-    params.push(search);
+  if (filters.search) {
+    query += ' AND full_name LIKE ?';
+    params.push(filters.search);
   }
 
-  // Limit the results and apply pagination
-  query += ` LIMIT ? OFFSET ?`;
+  return query;
+};
+
+// Route to get contacts with pagination and filters
+app.get('/contacts', (req, res) => {
+  const limit = parseInt(req.query.limit) || 10;
+  const page = parseInt(req.query.page) || 1;
+  const offset = (page - 1) * limit;
+
+  const filters = applyFilters(req);
+  const params = [];
+  let query = `SELECT * FROM contacts ${buildFilterQuery(filters, params)}`;
+
+  query += ' LIMIT ? OFFSET ?';
   params.push(limit, offset);
 
   db.query(query, params, (err, results) => {
-    if (err) {
-      return res.status(500).send(err);
-    }
+    if (err) return res.status(500).send(err);
 
-    // Count the total number of filtered results
-    db.query('SELECT COUNT(*) as count FROM contacts WHERE 1=1', params, (err, countResults) => {
-      if (err) {
-        return res.status(500).send(err);
-      }
+    const countQuery = `SELECT COUNT(*) as count FROM contacts ${buildFilterQuery(filters, [])}`;
+    db.query(countQuery, params.slice(0, -2), (err, countResults) => {
+      if (err) return res.status(500).send(err);
 
       const totalContacts = countResults[0].count;
       const totalPages = Math.ceil(totalContacts / limit);
 
       res.json({
         contacts: results,
-        totalPages: totalPages,
+        totalPages,
         currentPage: page,
-        totalContacts: totalContacts
+        totalContacts
       });
     });
   });
 });
 
-
-
 // Route to get unique cities, zip codes, area codes, and categories for dropdown filters
 app.get('/filters', (req, res) => {
-  const cityQuery = 'SELECT DISTINCT city FROM contacts ORDER BY city ASC';
-  const zipCodeQuery = 'SELECT DISTINCT zip_code FROM contacts ORDER BY zip_code ASC';
-  const areaCodeQuery = `
-    SELECT DISTINCT 
-    CASE
-      WHEN LEFT(phone_number, 2) = '+1' THEN SUBSTRING(phone_number, 3, 3)
-      ELSE LEFT(phone_number, 3)
-    END AS area_code 
-    FROM contacts ORDER BY area_code ASC`;
-  const categoryQuery = 'SELECT DISTINCT category FROM contacts ORDER BY category ASC';
+  const queries = {
+    cityQuery: 'SELECT DISTINCT city FROM contacts ORDER BY city ASC',
+    zipCodeQuery: 'SELECT DISTINCT zip_code FROM contacts ORDER BY zip_code ASC',
+    areaCodeQuery: `
+      SELECT DISTINCT 
+      CASE
+        WHEN LEFT(phone_number, 2) = '+1' THEN SUBSTRING(phone_number, 3, 3)
+        ELSE LEFT(phone_number, 3)
+      END AS area_code 
+      FROM contacts ORDER BY area_code ASC`,
+    categoryQuery: 'SELECT DISTINCT category FROM contacts ORDER BY category ASC',
+  };
 
   const filters = {};
-
-  db.query(cityQuery, (err, cityResults) => {
-    if (err) {
-      return res.status(500).send(err);
-    }
+  db.query(queries.cityQuery, (err, cityResults) => {
+    if (err) return res.status(500).send(err);
     filters.cities = cityResults.map((result) => result.city);
 
-    db.query(zipCodeQuery, (err, zipResults) => {
-      if (err) {
-        return res.status(500).send(err);
-      }
+    db.query(queries.zipCodeQuery, (err, zipResults) => {
+      if (err) return res.status(500).send(err);
       filters.zipCodes = zipResults.map((result) => result.zip_code);
 
-      db.query(areaCodeQuery, (err, areaCodeResults) => {
-        if (err) {
-          return res.status(500).send(err);
-        }
+      db.query(queries.areaCodeQuery, (err, areaCodeResults) => {
+        if (err) return res.status(500).send(err);
         filters.areaCodes = areaCodeResults.map((result) => result.area_code);
 
-        db.query(categoryQuery, (err, categoryResults) => {
-          if (err) {
-            return res.status(500).send(err);
-          }
+        db.query(queries.categoryQuery, (err, categoryResults) => {
+          if (err) return res.status(500).send(err);
           filters.categories = categoryResults.map((result) => result.category);
 
-          // Get total count of records
           db.query('SELECT COUNT(*) as totalRecords FROM contacts', (err, countResult) => {
-            if (err) {
-              return res.status(500).send(err);
-            }
+            if (err) return res.status(500).send(err);
             filters.totalRecords = countResult[0].totalRecords;
             res.json(filters);
           });
@@ -158,61 +146,17 @@ app.get('/filters', (req, res) => {
 });
 
 
-// Route to get all filtered contacts for CSV download (without pagination)
+// Route to download all filtered contacts as CSV
 app.get('/contacts/download', (req, res) => {
-  const city = req.query.city !== 'All' ? req.query.city : null;
-  const zipCode = req.query.zipCode !== 'All' ? req.query.zipCode : null;
-  const areaCode = req.query.areaCode !== 'All' ? req.query.areaCode : null;
-  const category = req.query.category !== 'All' ? req.query.category : null;
-  const search = req.query.search ? `%${req.query.search}%` : null; // Loose match for search
-
-  let query = `SELECT * FROM contacts WHERE 1=1`;
-  let params = [];
-
-  // Apply filters for city, zip code, area code, and category
-  if (city) {
-    query += ` AND city = ?`;
-    params.push(city);
-  }
-
-  if (zipCode) {
-    query += ` AND zip_code = ?`;
-    params.push(zipCode);
-  }
-
-  // Apply filters for city, zip code, area code, and category
-  if (areaCode) {
-    query += ` AND (CASE 
-            WHEN LEFT(phone_number, 2) = '+1' THEN SUBSTRING(phone_number, 3, 3) 
-            ELSE LEFT(phone_number, 3) 
-            END) = ?`;
-    params.push(areaCode);
-  }
-
-  //if (areaCode) {
-    //query += ` AND LEFT(phone_number, 3) = ?`;
-    //params.push(areaCode);
-  //}
-
-  if (category) {
-    query += ` AND category = ?`;
-    params.push(category);
-  }
-
-  // Apply the search query to filter by first name (loose match)
-  if (search) {
-    query += ` AND full_name LIKE ?`;
-    params.push(search);
-  }
+  const filters = applyFilters(req);
+  const params = [];
+  let query = `SELECT * FROM contacts ${buildFilterQuery(filters, params)}`;
 
   db.query(query, params, (err, results) => {
-    if (err) {
-      return res.status(500).send(err);
-    }
-    res.json(results); // Return the filtered results
+    if (err) return res.status(500).send(err);
+    res.json(results); // Or send CSV as per your logic
   });
 });
-
 
 
 // Start the server
