@@ -146,15 +146,25 @@ app.get('/filters', (req, res) => {
 });
 
 
-// Route to download all filtered contacts as CSV
 app.get('/contacts/download', (req, res) => {
-  const filters = applyFilters(req);
+  const filters = applyFilters(req);  // This extracts the filters from the query params
   const params = [];
-  let query = `SELECT * FROM contacts ${buildFilterQuery(filters, params)}`;
+  let query = `SELECT id, full_name, email, phone_number, street_address, city, zip_code 
+               FROM contacts ${buildFilterQuery(filters, params)}`; // Include the missing fields
 
   db.query(query, params, (err, results) => {
     if (err) return res.status(500).send(err);
-    res.json(results); // Or send CSV as per your logic
+
+    // Convert the results to CSV, now including the address, city, and zip_code fields
+    let csvContent = 'id,full_name,email,phone_number,street_address,city,zip_code\n'; // Updated headers
+    results.forEach((row) => {
+      csvContent += `${row.id},${row.full_name},${row.email},${row.phone_number},${row.street_address},${row.city},${row.zip_code}\n`;
+    });
+
+    // Set headers and send CSV file
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=filtered_contacts.csv');
+    res.status(200).send(csvContent); // Send the CSV content
   });
 });
 
