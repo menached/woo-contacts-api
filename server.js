@@ -1,16 +1,10 @@
-// Load environment variables
 require('dotenv').config();
-
-// Import necessary packages
 const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
 
-// Initialize Express app
 const app = express();
-
-// Enable CORS to allow React frontend to communicate with the backend
-app.use(cors());
+app.use(cors()); // Enable CORS for frontend communication
 
 // Create a connection to the database
 const db = mysql.createConnection({
@@ -31,35 +25,35 @@ db.connect((err) => {
 
 // Helper function to apply filters
 const applyFilters = (req) => {
-  const city = req.query.city !== 'All' ? req.query.city : null;
-  const zipCode = req.query.zipCode !== 'All' ? req.query.zipCode : null;
-  const areaCode = req.query.areaCode !== 'All' ? req.query.areaCode : null;
+  const cities = req.query.city !== 'All' ? req.query.city.split(',') : null;
+  const zipCodes = req.query.zipCode !== 'All' ? req.query.zipCode.split(',') : null;
+  const areaCodes = req.query.areaCode !== 'All' ? req.query.areaCode.split(',') : null;
   const category = req.query.category !== 'All' ? req.query.category : null;
   const search = req.query.search ? `%${req.query.search}%` : null;
 
-  return { city, zipCode, areaCode, category, search };
+  return { cities, zipCodes, areaCodes, category, search };
 };
 
 // Helper function to build SQL WHERE clause based on filters
 const buildFilterQuery = (filters, params) => {
   let query = 'WHERE 1=1'; // Base query
 
-  if (filters.city) {
-    query += ' AND city = ?';
-    params.push(filters.city);
+  if (filters.cities) {
+    query += ` AND city IN (${filters.cities.map(() => '?').join(',')})`;
+    params.push(...filters.cities);
   }
 
-  if (filters.zipCode) {
-    query += ' AND zip_code = ?';
-    params.push(filters.zipCode);
+  if (filters.zipCodes) {
+    query += ` AND zip_code IN (${filters.zipCodes.map(() => '?').join(',')})`;
+    params.push(...filters.zipCodes);
   }
 
-  if (filters.areaCode) {
+  if (filters.areaCodes) {
     query += ` AND (CASE 
                   WHEN LEFT(phone_number, 2) = '+1' THEN SUBSTRING(phone_number, 3, 3)
                   ELSE LEFT(phone_number, 3)
-                END) = ?`;
-    params.push(filters.areaCode);
+                END) IN (${filters.areaCodes.map(() => '?').join(',')})`;
+    params.push(...filters.areaCodes);
   }
 
   if (filters.category) {
@@ -75,15 +69,18 @@ const buildFilterQuery = (filters, params) => {
   return query;
 };
 
-// Route to get contacts with pagination and filters
+// Route to get contacts with pagination, sorting, and filters
 app.get('/contacts', (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const page = parseInt(req.query.page) || 1;
   const offset = (page - 1) * limit;
 
+  const sortColumn = req.query.sortColumn || 'full_name'; // Default sort column
+  const sortOrder = req.query.sortOrder || 'asc';         // Default sort order
+
   const filters = applyFilters(req);
   const params = [];
-  let query = `SELECT * FROM contacts ${buildFilterQuery(filters, params)}`;
+  let query = `SELECT * FROM contacts ${buildFilterQuery(filters, params)} ORDER BY ${sortColumn} ${sortOrder}`;
 
   query += ' LIMIT ? OFFSET ?';
   params.push(limit, offset);
@@ -151,7 +148,7 @@ app.get('/filters', (req, res) => {
   });
 });
 
-// Route to download contacts
+// Route to download contacts as CSV
 app.get('/contacts/download', (req, res) => {
   const filters = applyFilters(req);
   const params = [];
