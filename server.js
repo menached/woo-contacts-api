@@ -164,7 +164,7 @@ app.get('/contacts/download', (req, res) => {
     });
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=filtered_contacts.csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=goAutodial_campaign.csv');
     res.status(200).send(csvContent);
   });
 });
