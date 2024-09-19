@@ -2,7 +2,7 @@
 
 The database connection uses node.  
 
-Run:
+Run this on the cli:
     node server.js
 
 ## Three components:  
