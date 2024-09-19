@@ -2,11 +2,10 @@
 
 The database connection uses node.  
 
-Run this on the cli:
-    node server.js
+Run:  
+    node server.js  
 
 ## Three components:  
-
 ### The database connection uses node.  
 ### [woo-contacts-api](https://github.com/menached/woo-contacts-api)  
 ### The frontend react app uses npm and allows for downloading of filtered lists from a master dataset.  
