@@ -2,6 +2,9 @@
 
 The database connection uses node.  
 
+Setup with:   
+    npm install
+
 Run:  
     node server.js  
 
