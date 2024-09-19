@@ -33,16 +33,26 @@ db.connect((err) => {
   console.log('Connected to the MySQL database');
 });
 
-// Helper function to apply filters
 const applyFilters = (req) => {
-  const cities = req.query.city !== 'All' ? req.query.city.split(',') : null;
-  const zipCodes = req.query.zipCode !== 'All' ? req.query.zipCode.split(',') : null;
-  const areaCodes = req.query.areaCode !== 'All' ? req.query.areaCode.split(',') : null;
-  const category = req.query.category !== 'All' ? req.query.category : null;
+  const cities = req.query.city && req.query.city !== 'All' ? req.query.city.split(',') : null;
+  const zipCodes = req.query.zipCode && req.query.zipCode !== 'All' ? req.query.zipCode.split(',') : null;
+  const areaCodes = req.query.areaCode && req.query.areaCode !== 'All' ? req.query.areaCode.split(',') : null;
+  const category = req.query.category && req.query.category !== 'All' ? req.query.category : null;
   const search = req.query.search ? `%${req.query.search}%` : null;
 
   return { cities, zipCodes, areaCodes, category, search };
 };
+
+//// Helper function to apply filters
+//const applyFilters = (req) => {
+  //const cities = req.query.city !== 'All' ? req.query.city.split(',') : null;
+  //const zipCodes = req.query.zipCode !== 'All' ? req.query.zipCode.split(',') : null;
+  //const areaCodes = req.query.areaCode !== 'All' ? req.query.areaCode.split(',') : null;
+  //const category = req.query.category !== 'All' ? req.query.category : null;
+  //const search = req.query.search ? `%${req.query.search}%` : null;
+
+  //return { cities, zipCodes, areaCodes, category, search };
+//};
 
 // Helper function to build SQL WHERE clause based on filters
 const buildFilterQuery = (filters, params) => {
