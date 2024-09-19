@@ -2,9 +2,19 @@ require('dotenv').config();
 const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
+const https = require('https');
+const fs = require('fs');
 
+// Create an Express app
 const app = express();
 app.use(cors()); // Enable CORS for frontend communication
+
+// SSL certificates
+const sslOptions = {
+  key: fs.readFileSync('/etc/ssl/private/doap.com.key'),
+  cert: fs.readFileSync('/etc/ssl/certs/doap.com.crt'),
+  ca: fs.readFileSync('/etc/ssl/certs/doap-chain.crt') // Add the chain file here
+};
 
 // Create a connection to the database
 const db = mysql.createConnection({
@@ -169,9 +179,9 @@ app.get('/contacts/download', (req, res) => {
   });
 });
 
-// Start the server
+// Start the server on HTTPS
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+https.createServer(sslOptions, app).listen(PORT, () => {
+  console.log(`HTTPS Server running on port ${PORT}`);
 });
 
