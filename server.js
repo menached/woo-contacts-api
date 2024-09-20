@@ -128,7 +128,7 @@ app.get('/contacts', (req, res) => {
 // Route to get unique cities, zip codes, area codes, and categories for dropdown filters
 app.get('/filters', (req, res) => {
   const queries = {
-    cityQuery: 'SELECT DISTINCT city FROM contacts ORDER BY city ASC',
+    cityQuery: `SELECT DISTINCT city FROM contacts where city != '' ORDER BY city ASC`,
     zipCodeQuery: 'SELECT DISTINCT zip_code FROM contacts ORDER BY zip_code ASC',
     areaCodeQuery: `
       SELECT DISTINCT 
