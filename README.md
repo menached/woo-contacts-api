@@ -1,6 +1,6 @@
 # Backend server component relies on node.js
 
-The database connection uses node.  
+DB connection uses node.  
 
 Run:  
     node server.js  
